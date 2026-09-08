@@ -3,9 +3,11 @@
 Lumi's architectue 16 (or LA-16) is a tiny RISC 16-bits CPU architecture.
 
 ## Block diagram:
+
 ![Block diagram](./block-diagram.png)
 
 Characteristics:
+
 - Little endian
 - 16-bit bytes and words
 - 5 general-purpoise word-sized registers
