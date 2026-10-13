@@ -3,19 +3,32 @@
 ## Value notation
 
 - `r[x]` - Any indexable register
-- `imm[x]` - Any immediate value
+- `immo[x]` - Any octet immediate value
+- `immw[x]` - Any word immediate value
 - `*` - Wildcard for ignored bits
 
-## Interrupt vectors
+## Interrupts
 
 the address space 0x0000 - 0x00ff is reserved for hardware
 and software interruptions
 
-|     Vector      |         Interrupt         |
-| :-------------: | :-----------------------: |
-|     0x0000      |           Reset           |
-|     0x0001      | Invalid Instruction Fault |
-| 0x0002 - 0xffff |       IRQ0 - IRQ253       |
+|     Vector      |           Interrupt            |
+| :-------------: | :----------------------------: |
+|     0x0000      |             Reset              |
+|     0x0001      | Invalid Instruction Fault (IF) |
+| 0x0002 - 0x00fe |         IRQ0 - IRQ252          |
+|     0x00ff      |            NMI mask            |
+
+
+Reset and Invalid Instruction Fault (IF) are non-maskable interrupts.
+
+The NMI Mask is a 16-bit bitmask. Each bit indicates whether the
+corresponding IRQ is configured as a non-maskable interrupt (NMI).
+Bit 0 corresponds to IRQ0, bit 1 to IRQ1, and so on through bit 15,
+which corresponds to IRQ15.
+
+A set bit (`1`) indicates that the corresponding IRQ is non-maskable;
+a cleared bit (`0`) indicates that it is maskable.
 
 ## Registers
 
@@ -32,14 +45,14 @@ and software interruptions
 
 **Non-indexable**
 
-| Register |     Description      |
-| :------: | :------------------: |
-|    PC    |   Program Counter    |
+| Register | Description          |
+| :------: | :------------------- |
+|    PC    | Program Counter      |
 |   Ins    | Instruction Register |
-|   Arg    |  Argument Register   |
-|   Addr   |   Address Register   |
-|   Data   |    Data Register     |
-|  Flags   |    Flags Register    |
+|   Arg    | Argument Register    |
+|   Addr   | Address Register     |
+|   Data   | Data Register        |
+|  Flags   | Flags Register       |
 
 ## Flags
 
@@ -96,20 +109,20 @@ instruction reg <- Mem[pc] (pc += 1)
 ### Load from Memory
 
 ```asm
-lda %r0, [#imm0]
+lda %r0, [#immw0]
 ```
 
-Loads the value in address `#imm0` to `r0` register.
+Loads the value in address `#immw0` to `r0` register.
 
-| 15  | 14 ... 9 | 8 ... 6 | 5 ... 0 |     |   23 ... 16   |   31 ... 24    |
-| :-: | :------: | :-----: | :-----: | --- | :-----------: | :------------: |
-|  1  |  000010  |   r0    |   \*    |     | imm0 low byte | imm0 high byte |
+| 15  | 14 ... 9 | 8 ... 6 | 5 ... 0 |     | 23 ... 24 |
+| :-: | :------: | :-----: | :-----: | --- | :-------: |
+|  1  |  000010  |   r0    |   \*    |     |  #immw0   |
 
 - r0 - destination register
-- imm0 - immediate address
+- immw0 - immediate address
 
 ```
-r0 <- Mem[imm0]
+r0 <- Mem[immw0]
 Z N C O I H
 + + - - - -
 ```
@@ -150,21 +163,21 @@ r0 <- data
 ```
 
 ```asm
-lda %r0, [#imm0 + %r1]
+lda %r0, [#immw0 + %r1]
 ```
 
-Loads the value in address `#imm0 + r1` into `r0`.
+Loads the value in address `#immw0 + r1` into `r0`.
 
-| 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |     |   23 ... 16   |   31 ... 24    |
-| :-: | :------: | :-----: | :-----: | :-----: | --- | :-----------: | :------------: |
-|  1  |  000100  |   r0    |   r1    |   \*    |     | imm0 low byte | imm0 high byte |
+| 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |     | 23 ... 24 |
+| :-: | :------: | :-----: | :-----: | :-----: | --- | :-------: |
+|  1  |  000100  |   r0    |   r1    |   \*    |     |  #immw0   |
 
 - r0 - target register
 - r1 - offset register
-- imm0 - base immediate value
+- immw0 - base immediate value
 
 ```
-r0 <- Mem[imm0 + r1]
+r0 <- Mem[immw0 + r1]
 Z N C O I H
 + + - - - -
 ```
@@ -186,20 +199,20 @@ r0 <- Data
 ### Store to Memory
 
 ```asm
-sta %r0, [#imm0]
+sta %r0, [#immw0]
 ```
 
-Stores the value in `r0` to address `#imm0`.
+Stores the value in `r0` to address `#immw0`.
 
-| 15  | 14 ... 9 | 8 ... 6 | 5 ... 0 |     |   23 ... 16   |   31 ... 24    |
-| :-: | :------: | :-----: | :-----: | :-: | :-----------: | :------------: |
-|  1  |  000101  |   r0    |   \*    |     | imm0 low byte | imm0 high byte |
+| 15  | 14 ... 9 | 8 ... 6 | 5 ... 0 |     | 23 ... 24 |
+| :-: | :------: | :-----: | :-----: | :-: | :-------: |
+|  1  |  000101  |   r0    |   \*    |     |  #immw0   |
 
 - r0 - origin register
-- imm0 - immediate address
+- immw0 - immediate address
 
 ```
-Mem[imm0] <- r0
+Mem[immw0] <- r0
 Z N C O I H
 - - - - - -
 ```
@@ -221,17 +234,17 @@ Z N C O I H
 ```
 
 ```asm
-sta %r0, [#imm0 + %r1]
+sta %r0, [#immw0 + %r1]
 ```
 
-Stores the value in `r0` to address `#imm0 + r1`.
+Stores the value in `r0` to address `#immw0 + r1`.
 
-| 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |     |   23 ... 16   |   31 ... 24    |
-| :-: | :------: | :-----: | :-----: | :-----: | :-: | :-----------: | :------------: |
-|  1  |  000111  |   r0    |   r1    |   \*    |     | imm0 low byte | imm0 high byte |
+| 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |     | 31 ... 16 |
+| :-: | :------: | :-----: | :-----: | :-----: | :-: | :-------: |
+|  1  |  000111  |   r0    |   r1    |   \*    |     |  #immw0   |
 
 ```
-Mem[imm0 + r1] <- r0
+Mem[immw0 + r1] <- r0
 Z N C O I H
 - - - - - -
 ```
@@ -251,20 +264,20 @@ Copy data from register `r0` into register `r1`
 |  0  |  001000  |   r0    |   r1    |   \*    |
 
 ```asm
-mov %r0, #imm0
+mov %r0, #immw0
 ```
 
-Loads the immediate value `imm0` directly into register `r0`.
+Loads the immwediate value `#immw0` directly into register `r0`.
 
-| 15  | 14 ... 9 | 8 ... 6 | 5 ... 0 |     |   23 ... 16   |   31 ... 24    |
-| :-: | :------: | :-----: | :-----: | --- | :-----------: | :------------: |
-|  1  |  001001  |   r0    |   \*    |     | imm0 low byte | imm0 high byte |
+| 15  | 14 ... 9 | 8 ... 6 | 5 ... 0 |     | 31 ... 16 |
+| :-: | :------: | :-----: | :-----: | --- | :-------: |
+|  1  |  001001  |   r0    |   \*    |     |  #immw0   |
 
 - r0 - destination register
-- imm0 - immediate value
+- immw0 - immediate value
 
 ```
-r0 <- imm0
+r0 <- immw0
 Z N C O I H
 + + - - - -
 ```
@@ -377,6 +390,67 @@ not %r0, %r1
 
 ---
 
+### Bit Manipulation
+
+```asm
+setb %r0, #pos, V
+```
+
+Sets (`V = 1`) or clears (`V = 0`) bit `pos` of register `r0`, leaving the other bits untouched. Writes to `Zero` are ignored.
+
+| 15  | 14 ... 9 | 8 ... 6 |  5  | 4 ... 1 |  0  |
+| :-: | :------: | :-----: | :-: | :-----: | :-: |
+|  0  |  010100  |   r0    |  V  |   pos   | \*  |
+
+- r0 - target register
+- pos - bit position (0 - 15)
+- V - value to write to the bit
+
+```
+r0[pos] <- V
+Z N C O I H
+- - - - - -
+```
+
+Cycles:
+
+```verilog
+Ins <- Mem[PC] (PC += 1)
+
+ALU-1-A <- r0
+ALU-1-B <- mask(pos, V)
+r0 <- ALU-1-R
+```
+
+```asm
+setf #pos, V
+```
+
+Sets (`V = 1`) or clears (`V = 0`) bit `pos` of the flags register. Positions follow the flags table (15 = Z, 14 = N, 13 = C, 12 = O, 11 = I, 10 = H, 7 ... 0 = Interrupt).
+
+| 15  | 14 ... 9 | 8 ... 6 |  5  | 4 ... 1 |  0  |
+| :-: | :------: | :-----: | :-: | :-----: | :-: |
+|  0  |  010101  |   \*    |  V  |   pos   | \*  |
+
+- pos - bit position (0 - 15)
+- V - value to write to the bit
+
+```
+Flags[pos] <- V
+Z N C O I H
+only the selected bit changes
+```
+
+Cycles:
+
+```verilog
+Ins <- Mem[PC] (PC += 1)
+
+Flags[pos] <- V
+```
+
+---
+
 ### Comparison
 
 ```asm
@@ -387,7 +461,7 @@ Subtracts `r1` form `r0`, update flags and discards the result.
 
 | 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |
 | :-: | :------: | :-----: | :-----: | :-----: |
-|  0  |  010100  |   r0    |   r1    |   \*    |
+|  0  |  010110  |   r0    |   r1    |   \*    |
 
 ```
 r0 - r1 (salva flags)
@@ -417,7 +491,7 @@ Writes `r0` to the stack.
 
 | 15  | 14 ... 9 | 8 ... 6 | 5 ... 0 |
 | :-: | :------: | :-----: | :-----: |
-|  0  |  010101  |   r0    |   \*    |
+|  0  |  010111  |   r0    |   \*    |
 
 ```asm
 push %r0, %r1
@@ -427,7 +501,7 @@ Writes `r0` and `r1` into the stack
 
 | 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |
 | :-: | :------: | :-----: | :-----: | :-----: |
-|  0  |  010101  |   r0    |   r1    |   000   |
+|  0  |  010111  |   r0    |   r1    |   000   |
 
 ```asm
 push %r0, %r1, %r2
@@ -437,7 +511,7 @@ Writes `r0`, `r1` and `r2` into the stack
 
 | 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |
 | :-: | :------: | :-----: | :-----: | :-----: |
-|  0  |  010101  |   r0    |   r1    |   r2    |
+|  0  |  010111  |   r0    |   r1    |   r2    |
 
 ```asm
 pusha
@@ -447,7 +521,7 @@ Writes all registers into the stack
 
 | 15  | 14 ... 9 | 8 ... 0 |
 | :-: | :------: | :-----: |
-|  0  |  010110  |   \*    |
+|  0  |  011000  |   \*    |
 
 ```asm
 pop %r0
@@ -457,7 +531,7 @@ Retrieves from the top of the stack to `r0`.
 
 | 15  | 14 ... 9 | 8 ... 6 | 5 ... 0 |
 | :-: | :------: | :-----: | :-----: |
-|  0  |  010111  |   r0    |   \0    |
+|  0  |  011001  |   r0    |   \0    |
 
 ```asm
 pop %r0, %r1
@@ -467,7 +541,7 @@ Retrieves from the top of the stack to `r0` and `r1`.
 
 | 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |
 | :-: | :------: | :-----: | :-----: | :-----: |
-|  0  |  010111  |   r0    |   r1    |   000   |
+|  0  |  011001  |   r0    |   r1    |   000   |
 
 ```asm
 pop %r0, %r1, %r2
@@ -477,7 +551,7 @@ Retrieves from the top of the stack to `r0`, `r1` and `r2`.
 
 | 15  | 14 ... 9 | 8 ... 6 | 5 ... 3 | 2 ... 0 |
 | :-: | :------: | :-----: | :-----: | :-----: |
-|  0  |  010111  |   r0    |   r1    |   r2    |
+|  0  |  011001  |   r0    |   r1    |   r2    |
 
 ```asm
 popa
@@ -487,7 +561,7 @@ Writes all registers into the stack
 
 | 15  | 14 ... 9 | 8 ... 0 |
 | :-: | :------: | :-----: |
-|  0  |  011000  |   \*    |
+|  0  |  011010  |   \*    |
 
 ---
 
@@ -509,25 +583,25 @@ Flags table (3 bits):
 #### Direct / Indirect Branch
 
 ```asm
-br #imm0          ; flag = 101,  V = X
-br flag, V, #imm  ; flag = flag, V = V
-brz #imm          ; flag = 000,  V = 1
-brnz #imm         ; flag = 000,  V = 0
-brn #imm          ; flag = 001,  V = 1
-brp #imm          ; flag = 001,  V = 0
-brc #imm          ; flag = 010,  V = 1
-brnc #imm         ; flag = 010,  V = 0
-bro #imm          ; flag = 011,  V = 1
-brno #imm         ; flag = 011,  V = 0
-bri #imm          ; flag = 100,  V = 1
-brni #imm         ; flag = 100,  V = 0
+br #immw0           ; flag = 101,  V = X
+br flag, V, #immw0  ; flag = flag, V = V
+brz #immw0          ; flag = 000,  V = 1
+brnz #immw0         ; flag = 000,  V = 0
+brn #immw0          ; flag = 001,  V = 1
+brp #immw0          ; flag = 001,  V = 0
+brc #immw0          ; flag = 010,  V = 1
+brnc #immw0         ; flag = 010,  V = 0
+bro #immw0          ; flag = 011,  V = 1
+brno #immw0         ; flag = 011,  V = 0
+bri #immw0          ; flag = 100,  V = 1
+brni #immw0         ; flag = 100,  V = 0
 ```
 
-Jumps to address `#imm0` if `flag` matches `V` or if `flag` is `101`.
+Jumps to address `#immw0` if `flag` matches `V` or if `flag` is `101`.
 
-| 15  | 14 ... 9 | 8 ... 6 |  5  | 4 ... 0 |     |   23 ... 16   |   31 ... 24    |
-| :-: | :------: | :-----: | :-: | :-----: | --- | :-----------: | :------------: |
-|  1  |  011001  |  flag   |  V  |  00000  |     | imm0 low byte | imm0 high byte |
+| 15  | 14 ... 9 | 8 ... 6 |  5  | 4 ... 0 |     | 31 ... 16 |
+| :-: | :------: | :-----: | :-: | :-----: | --- | :-------: |
+|  1  |  011011  |  flag   |  V  |  00000  |     |  #immw0   |
 
 Cycles:
 
@@ -544,40 +618,40 @@ if (flag == 101) {
 ```
 
 ```asm
-br %r0            ; flag = 101,  V = X
-br flag, V, %r0   ; flag = flag, V = V
-brz #imm          ; flag = 000,  V = 1
-brnz #imm         ; flag = 000,  V = 0
-brn #imm          ; flag = 001,  V = 1
-brp #imm          ; flag = 001,  V = 0
-brc #imm          ; flag = 010,  V = 1
-brnc #imm         ; flag = 010,  V = 0
-bro #imm          ; flag = 011,  V = 1
-brno #imm         ; flag = 011,  V = 0
-bri #imm          ; flag = 100,  V = 1
-brni #imm         ; flag = 100,  V = 0
+br %r0              ; flag = 101,  V = X
+br flag, V, %r0     ; flag = flag, V = V
+brz #immw0, %r0     ; flag = 000,  V = 1
+brnz #immw0, %r0    ; flag = 000,  V = 0
+brn #immw0, %r0     ; flag = 001,  V = 1
+brp #immw0, %r0     ; flag = 001,  V = 0
+brc #immw0, %r0     ; flag = 010,  V = 1
+brnc #immw0, %r0    ; flag = 010,  V = 0
+bro #immw0, %r0     ; flag = 011,  V = 1
+brno #immw0, %r0    ; flag = 011,  V = 0
+bri #immw0, %r0     ; flag = 100,  V = 1
+brni #immw0, %r0    ; flag = 100,  V = 0
 ```
 
 Jumps to address stored in `r0` if `flag` matches `V` or if `flag` is `101`.
 
 | 15  | 14 ... 9 | 8 ... 6 |  5  | 4 ... 2 | 1 0 |
 | :-: | :------: | :-----: | :-: | :-----: | :-: |
-|  0  |  011010  |  flag   |  V  |   r0    | 00  |
+|  0  |  011100  |  flag   |  V  |   r0    | 00  |
 
 #### Direct / Indirect Call
 
 ```asm
-call #imm0       ; Chamada Direta
+call #immw0       ; Chamada Direta
 call %r0         ; Chamada Indireta
 ```
 
-Jumpos to `imm0` or `r0` after saving `pc` into the stack;
+Jumpos to `immw0` or `r0` after saving `pc` into the stack;
 
 **Direct Call:**
 
-| 15  | 14 ... 9 | 8 ... ... 0 |     | 23 ... 16     |   31 ... 24    |
-| :-: | :------: | :---------: | :-: | ------------- | :------------: |
-|  1  |  011011  |     \*      |     | imm0 low byte | imm0 high byte |
+| 15  | 14 ... 9 | 8 ... ... 0 |     | 131 ... 16 |
+| :-: | :------: | :---------: | :-: | ---------- |
+|  1  |  011101  |     \*      |     | #immw0     |
 
 Cycles:
 
@@ -593,7 +667,7 @@ PC <- Arg
 
 | 15  | 14 ... 9 | 8 ... 6 | 5 .. 0 |
 | :-: | :------: | :-----: | :----: |
-|  0  |  011100  |   r0    |   \*   |
+|  0  |  011110  |   r0    |   \*   |
 
 Cycles:
 
@@ -606,17 +680,17 @@ PC <- r0
 
 ### Interrupt
 
-```verilog
-int #imm0
+```asm
+int #immw0
 ```
 
-Performs software interrupt `#imm0 & 0xff`
+Performs software interrupt `#immw0 & 0xff`
 
 | 15  | 14 ... 9 |  8  | 7 ... 0 |
 | :-: | :------: | :-: | :-----: |
-|  0  |  011101  | \*  |  #imm0  |
+|  0  |  011111  | \*  | #immo0  |
 
-```verilog
+```asm
 iret
 ```
 
@@ -624,4 +698,4 @@ Returns from an interrupt
 
 | 15  | 14 ... 9 | 8 ... 0 |
 | :-: | :------: | :-----: |
-|  0  |  011110  |   \*    |
+|  0  |  100000  |   \*    |
